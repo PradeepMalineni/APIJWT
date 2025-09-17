@@ -1,17 +1,16 @@
-"""Configuration for Wells Fargo AuthX integration."""
+"""Configuration for Wells Fargo AuthX integration - Apigee Only."""
 
-from typing import List, Optional
-from pydantic import BaseSettings, validator
+from typing import Optional
+from pydantic import field_validator
+from pydantic_settings import BaseSettings
 
 
 class WellsAuthConfig(BaseSettings):
-    """Configuration for Wells Fargo authentication."""
+    """Configuration for Wells Fargo authentication - Apigee only."""
     
     # Wells Fargo AuthX settings
     apigee_jwks_url: Optional[str] = None
-    pingfed_jwks_url: Optional[str] = None
     apigee_client_id: str = "EBSSH"
-    pingfed_client_id: str = "EBSSH"
     
     # Environment-specific settings
     environment: str = "dev"  # dev, sit, prod
@@ -23,20 +22,23 @@ class WellsAuthConfig(BaseSettings):
     validate_claims: bool = True
     validate_certificate: bool = True
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-        env_prefix = "WELLS_AUTH_"
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": False,
+        "env_prefix": "WELLS_AUTH_"
+    }
     
-    @validator('environment')
+    @field_validator('environment')
+    @classmethod
     def validate_environment(cls, v):
         allowed_envs = ['dev', 'sit', 'prod']
         if v not in allowed_envs:
             raise ValueError(f'Environment must be one of: {allowed_envs}')
         return v
     
-    @validator('apigee_jwks_url', 'pingfed_jwks_url')
-    def validate_jwks_urls(cls, v):
+    @field_validator('apigee_jwks_url')
+    @classmethod
+    def validate_jwks_url(cls, v):
         if v and not v.startswith('https://'):
             raise ValueError('JWKS URLs must use HTTPS')
         return v
@@ -53,22 +55,7 @@ class WellsAuthConfig(BaseSettings):
             'prod': 'https://jwks-service-prod.cfapps.wellsfargo.net/publickey/getKeys'
         }
         return urls.get(self.environment, urls['dev'])
-    
-    def get_pingfed_jwks_url(self) -> str:
-        """Get PingFederate JWKS URL based on environment."""
-        if self.pingfed_jwks_url:
-            return self.pingfed_jwks_url
-        
-        # Default URLs based on environment
-        urls = {
-            'dev': 'https://cspf-dev.wellsfargo.net/pf/JWKS',
-            'sit': 'https://cspf-sit.wellsfargo.net/pf/JWKS',
-            'prod': 'https://cspf-prod.wellsfargo.net/pf/JWKS'
-        }
-        return urls.get(self.environment, urls['dev'])
 
 
 # Global Wells Auth configuration
 wells_auth_config = WellsAuthConfig()
-
-

@@ -1,0 +1,21 @@
+# Wells Fargo AuthX Standalone Application Requirements
+
+# Core FastAPI dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Wells Fargo AuthX dependency (install if you have access)
+# wellsfargo_ebssh_python_auth
+
+# Additional utilities
+python-multipart>=0.0.6
+python-jose[cryptography]>=3.3.0
+
+# Optional: For enhanced logging
+structlog>=23.0.0
+
+# Optional: For development
+pytest>=7.0.0
+httpx>=0.25.0

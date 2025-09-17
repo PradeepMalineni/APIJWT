@@ -1,15 +1,14 @@
-"""FastAPI dependencies for Wells Fargo AuthX integration."""
+"""FastAPI dependencies for Wells Fargo AuthX integration - Apigee Only."""
 
+import logging
 from typing import Optional, Dict, Any
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from app.logging import get_logger
-from app.security.mtls import tls_validator
-from .wells_authenticator import wells_authenticator, AuthProvider
+from wells_authenticator import wells_authenticator
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # HTTP Bearer token security scheme
 security = HTTPBearer(auto_error=False)
@@ -17,16 +16,14 @@ security = HTTPBearer(auto_error=False)
 
 async def get_wells_authenticated_user(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    provider: AuthProvider = AuthProvider.AUTO
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> Dict[str, Any]:
     """
-    FastAPI dependency to authenticate using Wells Fargo AuthX.
+    FastAPI dependency to authenticate using Wells Fargo AuthX Apigee.
     
     Args:
         request: FastAPI request object
         credentials: HTTP Bearer credentials
-        provider: Authentication provider to use
         
     Returns:
         JWT claims dictionary
@@ -34,9 +31,6 @@ async def get_wells_authenticated_user(
     Raises:
         HTTPException: If authentication fails
     """
-    # Validate TLS connection if required
-    tls_info = await tls_validator.validate_tls_connection(request)
-    
     # Extract JWT token
     if not credentials:
         logger.warning("No authorization header provided")
@@ -51,11 +45,11 @@ async def get_wells_authenticated_user(
     
     token = credentials.credentials
     
-    # Authenticate using Wells Fargo AuthX
+    # Authenticate using Wells Fargo AuthX Apigee
     claims, error = await wells_authenticator.authenticate_token(token)
     
     if error:
-        logger.warning("Wells Fargo authentication failed", error=error, provider=provider.value)
+        logger.warning("Wells Fargo Apigee authentication failed", extra={"error": error})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -67,19 +61,18 @@ async def get_wells_authenticated_user(
     
     # Store claims in request state for use by other dependencies
     request.state.claims = claims
-    request.state.tls_info = tls_info
-    request.state.auth_provider = provider.value
+    request.state.auth_provider = "apigee"
     
     # Log successful authentication
     logger.info(
-        "User authenticated successfully via Wells Fargo AuthX",
-        sub=claims.get('sub'),
-        client_id=claims.get('client_id'),
-        iss=claims.get('iss'),
-        aud=claims.get('aud'),
-        scope=claims.get('scope', []),
-        tls_scheme=tls_validator.get_tls_scheme(tls_info),
-        provider=provider.value
+        "User authenticated successfully via Wells Fargo AuthX Apigee",
+        extra={
+            "sub": claims.get('sub'),
+            "client_id": claims.get('client_id'),
+            "iss": claims.get('iss'),
+            "aud": claims.get('aud'),
+            "scope": claims.get('scope', [])
+        }
     )
     
     return claims
@@ -89,16 +82,8 @@ async def get_wells_apigee_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> Dict[str, Any]:
-    """FastAPI dependency for Apigee authentication."""
-    return await get_wells_authenticated_user(request, credentials, AuthProvider.APIGEE)
-
-
-async def get_wells_pingfed_user(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
-) -> Dict[str, Any]:
-    """FastAPI dependency for PingFederate authentication."""
-    return await get_wells_authenticated_user(request, credentials, AuthProvider.PINGFED)
+    """FastAPI dependency for Apigee authentication (alias for get_wells_authenticated_user)."""
+    return await get_wells_authenticated_user(request, credentials)
 
 
 def require_wells_scope(required_scope: str):
@@ -118,10 +103,12 @@ def require_wells_scope(required_scope: str):
         
         if required_scope not in user_scopes:
             logger.warning(
-                "Insufficient scope for Wells Fargo user",
-                required_scope=required_scope,
-                user_scopes=user_scopes,
-                sub=current_user.get('sub')
+                "Insufficient scope for Wells Fargo Apigee user",
+                extra={
+                    "required_scope": required_scope,
+                    "user_scopes": user_scopes,
+                    "sub": current_user.get('sub')
+                }
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -150,17 +137,15 @@ def _extract_scopes(claims: dict) -> list:
 
 
 async def get_wells_client_id(current_user: Dict[str, Any] = Depends(get_wells_authenticated_user)) -> str:
-    """Get client ID from Wells Fargo authenticated user."""
+    """Get client ID from Wells Fargo Apigee authenticated user."""
     return current_user.get('client_id') or current_user.get('sub', 'unknown')
 
 
 async def get_wells_user_id(current_user: Dict[str, Any] = Depends(get_wells_authenticated_user)) -> str:
-    """Get user ID from Wells Fargo authenticated user."""
+    """Get user ID from Wells Fargo Apigee authenticated user."""
     return current_user.get('sub', 'unknown')
 
 
 async def get_wells_user_scopes(current_user: Dict[str, Any] = Depends(get_wells_authenticated_user)) -> list:
-    """Get user scopes from Wells Fargo authenticated user."""
+    """Get user scopes from Wells Fargo Apigee authenticated user."""
     return _extract_scopes(current_user)
-
-

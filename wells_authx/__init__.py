@@ -1,4 +1,4 @@
-"""Wells Fargo AuthX integration for COP Guard."""
+"""Wells Fargo AuthX integration for COP Guard - Apigee Only."""
 
 from .wells_authenticator import WellsAuthenticator
 from .config import WellsAuthConfig

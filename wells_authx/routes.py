@@ -1,15 +1,15 @@
-"""Wells Fargo AuthX specific routes for COP Guard."""
+"""Wells Fargo AuthX specific routes for COP Guard - Apigee Only."""
 
+import logging
 from typing import Dict, Any
 
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.responses import JSONResponse
 
-from app.logging import get_logger
-from .deps import get_wells_authenticated_user, get_wells_apigee_user, get_wells_pingfed_user
-from .wells_authenticator import wells_authenticator
+from deps import get_wells_authenticated_user, get_wells_apigee_user
+from wells_authenticator import wells_authenticator
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -20,11 +20,11 @@ async def validate_wells_token(
     current_user: Dict[str, Any] = Depends(get_wells_authenticated_user)
 ) -> JSONResponse:
     """
-    Validate JWT token using Wells Fargo AuthX.
+    Validate JWT token using Wells Fargo AuthX Apigee.
     
     Args:
         request: FastAPI request object
-        current_user: Wells Fargo authenticated user claims
+        current_user: Wells Fargo Apigee authenticated user claims
         
     Returns:
         JSON response with claims or error
@@ -32,13 +32,15 @@ async def validate_wells_token(
     correlation_id = getattr(request.state, 'correlation_id', 'unknown')
     
     logger.info(
-        "Wells Fargo token validation requested",
-        correlation_id=correlation_id,
-        sub=current_user.get('sub'),
-        client_id=current_user.get('client_id'),
-        iss=current_user.get('iss'),
-        aud=current_user.get('aud'),
-        provider=getattr(request.state, 'auth_provider', 'unknown')
+        "Wells Fargo Apigee token validation requested",
+        extra={
+            "correlation_id": correlation_id,
+            "sub": current_user.get('sub'),
+            "client_id": current_user.get('client_id'),
+            "iss": current_user.get('iss'),
+            "aud": current_user.get('aud'),
+            "provider": getattr(request.state, 'auth_provider', 'apigee')
+        }
     )
     
     # Return success response with claims
@@ -47,7 +49,7 @@ async def validate_wells_token(
         content={
             "code": "200",
             "status": "success",
-            "provider": getattr(request.state, 'auth_provider', 'unknown'),
+            "provider": "apigee",
             "claims": current_user
         }
     )
@@ -59,7 +61,7 @@ async def validate_apigee_token(
     current_user: Dict[str, Any] = Depends(get_wells_apigee_user)
 ) -> JSONResponse:
     """
-    Validate JWT token specifically using Apigee provider.
+    Validate JWT token specifically using Apigee provider (alias for main endpoint).
     
     Args:
         request: FastAPI request object
@@ -72,10 +74,12 @@ async def validate_apigee_token(
     
     logger.info(
         "Apigee token validation requested",
-        correlation_id=correlation_id,
-        sub=current_user.get('sub'),
-        client_id=current_user.get('client_id'),
-        iss=current_user.get('iss')
+        extra={
+            "correlation_id": correlation_id,
+            "sub": current_user.get('sub'),
+            "client_id": current_user.get('client_id'),
+            "iss": current_user.get('iss')
+        }
     )
     
     return JSONResponse(
@@ -89,46 +93,10 @@ async def validate_apigee_token(
     )
 
 
-@router.post("/wells-auth/validate/pingfed")
-async def validate_pingfed_token(
-    request: Request,
-    current_user: Dict[str, Any] = Depends(get_wells_pingfed_user)
-) -> JSONResponse:
-    """
-    Validate JWT token specifically using PingFederate provider.
-    
-    Args:
-        request: FastAPI request object
-        current_user: PingFederate authenticated user claims
-        
-    Returns:
-        JSON response with claims or error
-    """
-    correlation_id = getattr(request.state, 'correlation_id', 'unknown')
-    
-    logger.info(
-        "PingFederate token validation requested",
-        correlation_id=correlation_id,
-        sub=current_user.get('sub'),
-        client_id=current_user.get('client_id'),
-        iss=current_user.get('iss')
-    )
-    
-    return JSONResponse(
-        status_code=200,
-        content={
-            "code": "200",
-            "status": "success",
-            "provider": "pingfed",
-            "claims": current_user
-        }
-    )
-
-
 @router.get("/wells-auth/info")
 async def get_wells_auth_info() -> JSONResponse:
     """
-    Get Wells Fargo AuthX configuration information.
+    Get Wells Fargo AuthX Apigee configuration information.
     
     Returns:
         JSON response with configuration details
@@ -145,7 +113,7 @@ async def get_wells_auth_info() -> JSONResponse:
             }
         )
     except Exception as e:
-        logger.error("Failed to get Wells AuthX info", error=str(e))
+        logger.error("Failed to get Wells AuthX info", extra={"error": str(e)})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
@@ -159,7 +127,7 @@ async def get_wells_auth_info() -> JSONResponse:
 @router.get("/wells-auth/health")
 async def wells_auth_health_check() -> JSONResponse:
     """
-    Health check for Wells Fargo AuthX integration.
+    Health check for Wells Fargo AuthX Apigee integration.
     
     Returns:
         JSON response with health status
@@ -167,7 +135,7 @@ async def wells_auth_health_check() -> JSONResponse:
     try:
         provider_info = wells_authenticator.get_provider_info()
         
-        # Check if authenticators are initialized
+        # Check if authenticator is initialized
         health_status = "healthy" if provider_info.get("initialized", False) else "degraded"
         
         return JSONResponse(
@@ -177,19 +145,18 @@ async def wells_auth_health_check() -> JSONResponse:
                 "status": "success",
                 "health": health_status,
                 "wells_authx_ready": provider_info.get("initialized", False),
-                "environment": provider_info.get("environment", "unknown")
+                "environment": provider_info.get("environment", "unknown"),
+                "provider": "apigee"
             }
         )
     except Exception as e:
-        logger.error("Wells AuthX health check failed", error=str(e))
+        logger.error("Wells AuthX health check failed", extra={"error": str(e)})
         return JSONResponse(
             status_code=503,
             content={
                 "code": "503",
                 "status": "error",
                 "health": "unhealthy",
-                "error_message": "Wells AuthX service unavailable"
+                "error_message": "Wells AuthX Apigee service unavailable"
             }
         )
-
-
