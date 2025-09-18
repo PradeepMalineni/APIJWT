@@ -1,7 +1,7 @@
 """Wells Fargo AuthX integration for COP Guard - Apigee Only."""
 
-from .wells_authenticator import WellsAuthenticator
+from .security import WellsAuthenticator, container
 from .config import WellsAuthConfig
 
-__all__ = ["WellsAuthenticator", "WellsAuthConfig"]
+__all__ = ["WellsAuthenticator", "WellsAuthConfig", "container"]
 

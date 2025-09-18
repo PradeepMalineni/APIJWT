@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Dict, Any, Optional, Tuple
 
-from config import wells_auth_config
+from ..config import WellsAuthConfig
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +12,11 @@ logger = logging.getLogger(__name__)
 class WellsAuthenticator:
     """Wells Fargo authentication wrapper using PyAuthenticator for Apigee only."""
     
-    def __init__(self):
+    def __init__(self, config: WellsAuthConfig = None):
         """Initialize Wells Fargo authenticator for Apigee."""
         self._apigee_authenticator = None
         self._initialized = False
+        self._config = config or WellsAuthConfig()
     
     async def _initialize_authenticator(self) -> None:
         """Initialize PyAuthenticator instance for Apigee."""
@@ -27,10 +28,10 @@ class WellsAuthenticator:
             from ebssh_python_auth.authenticate import PyAuthenticator
             
             # Initialize Apigee authenticator
-            apigee_jwks_url = wells_auth_config.get_apigee_jwks_url()
+            apigee_jwks_url = self._config.get_apigee_jwks_url()
             self._apigee_authenticator = PyAuthenticator(
                 jwks_url=apigee_jwks_url,
-                refresh='Y' if wells_auth_config.auto_refresh else 'N'
+                refresh='Y' if self._config.auto_refresh else 'N'
             )
             
             self._initialized = True
@@ -38,7 +39,7 @@ class WellsAuthenticator:
                 "Wells Fargo Apigee authenticator initialized",
                 extra={
                     "apigee_jwks_url": apigee_jwks_url,
-                    "auto_refresh": wells_auth_config.auto_refresh
+                    "auto_refresh": self._config.auto_refresh
                 }
             )
             
@@ -102,7 +103,7 @@ class WellsAuthenticator:
     def _create_request_object(self, client_id: Optional[str] = None):
         """Create request object for PyAuthenticator."""
         # Use provided client_id or default from config
-        effective_client_id = client_id or wells_auth_config.apigee_client_id
+        effective_client_id = client_id or self._config.apigee_client_id
         
         # Create a simple request object that PyAuthenticator expects
         class Request:
@@ -115,12 +116,8 @@ class WellsAuthenticator:
         """Get information about configured Apigee provider."""
         return {
             "provider": "apigee",
-            "apigee_jwks_url": wells_auth_config.get_apigee_jwks_url(),
-            "environment": wells_auth_config.environment,
-            "auto_refresh": wells_auth_config.auto_refresh,
+            "apigee_jwks_url": self._config.get_apigee_jwks_url(),
+            "environment": self._config.environment,
+            "auto_refresh": self._config.auto_refresh,
             "initialized": self._initialized
         }
-
-
-# Global Wells authenticator instance
-wells_authenticator = WellsAuthenticator()

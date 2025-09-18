@@ -1,41 +1,35 @@
 #!/usr/bin/env python3
 """
-Simple script to run the Wells Fargo AuthX service.
+Simple script to run the Wells Fargo AuthX Flask service.
 """
 
 import os
 import sys
-import uvicorn
-from pathlib import Path
+from main import app
 
 def main():
-    """Run the Wells Fargo AuthX service."""
+    """Run the Wells Fargo AuthX Flask service."""
     
     # Get configuration from environment variables
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
-    log_level = os.getenv("LOG_LEVEL", "info").lower()
-    reload = log_level == "debug"
+    debug = os.getenv("LOG_LEVEL", "info").lower() == "debug"
     
-    print(f"Starting Wells Fargo AuthX Service...")
+    print(f"Starting Wells Fargo AuthX Flask Service...")
     print(f"Host: {host}")
     print(f"Port: {port}")
-    print(f"Log Level: {log_level}")
-    print(f"Reload: {reload}")
-    print(f"API Documentation: http://{host}:{port}/docs")
+    print(f"Debug: {debug}")
+    print(f"API Endpoints: http://{host}:{port}/")
     print("-" * 50)
     
     try:
-        uvicorn.run(
-            "main:app",
+        app.run(
             host=host,
             port=port,
-            log_level=log_level,
-            reload=reload,
-            access_log=True
+            debug=debug
         )
     except KeyboardInterrupt:
-        print("\nShutting down Wells Fargo AuthX Service...")
+        print("\nShutting down Wells Fargo AuthX Flask Service...")
     except Exception as e:
         print(f"Error starting service: {e}")
         sys.exit(1)
